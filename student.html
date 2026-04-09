@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>班级管理系统 - 学生端</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f5f5f5;
+      color: #333;
+      line-height: 1.6;
+      min-height: 100vh;
+      margin: 0;
+      padding: 0;
+    }
+
+    .container {
+      background-color: #ffffff;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      padding: 40px;
+      width: 100%;
+      max-width: 400px;
+      margin: 50px auto;
+    }
+
+    .chat-container {
+      display: flex;
+      height: 90vh;
+      max-width: 1200px;
+      margin: 0 auto;
+      background-color: #ffffff;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      margin-top: 20px;
+    }
+
+    .chat-left {
+      flex: 3;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid #e0e0e0;
+    }
+
+    .chat-header {
+      padding: 20px;
+      border-bottom: 1px solid #e0e0e0;
+      background-color: #f9f9f9;
+    }
+
+    .chat-messages {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+    }
+
+    .chat-input {
+      padding: 20px;
+      border-top: 1px solid #e0e0e0;
+      display: flex;
+    }
+
+    .chat-input input {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      margin-right: 10px;
+    }
+
+    .chat-input button {
+      padding: 10px 20px;
+      background-color: rgb(15, 220, 120);
+      color: black;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .chat-input button:hover {
+      background-color: rgb(5, 200, 100);
+    }
+
+    .chat-right {
+      flex: 1;
+      padding: 6px;
+      background-color: #f9f9f9;
+      overflow-y: auto;
+      max-height: 800px;
+    }
+
+    .student-info {
+      padding: 4px;
+    }
+
+    .student-info-avatar {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background-color: #6c5ce7;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 15px;
+    }
+
+    .student-info h3 {
+      margin-bottom: 15px;
+      color: #6c5ce7;
+    }
+
+    .info-item {
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+
+    .info-label {
+      font-weight: 600;
+      color: #555;
+    }
+
+    .message {
+      margin-bottom: 15px;
+      padding: 10px;
+      border-radius: 8px;
+      max-width: 80%;
+      display: flex;
+      align-items: flex-start;
+    }
+
+    .message.own {
+      background-color: #e3f2fd;
+      margin-left: auto;
+      flex-direction: row-reverse;
+    }
+
+    .message.other {
+      background-color: #f5f5f5;
+    }
+
+    .message-avatar {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background-color: #6c5ce7;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+      margin: 0 10px;
+    }
+
+    .message-body {
+      flex: 1;
+    }
+
+    .message-header {
+      font-size: 12px;
+      color: black;
+      margin-bottom: 5px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .message-content {
+      font-size: 14px;
+    }
+
+    h1 {
+      text-align: center;
+      color: #2c3e50;
+      margin-bottom: 30px;
+      font-size: 20px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      color: #555;
+    }
+
+    input,
+    select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+      transition: border-color 0.2s ease;
+    }
+
+    input:focus,
+    select:focus {
+      outline: none;
+      border-color: rgb(15, 220, 120);
+      box-shadow: 0 0 0 2px rgba(15, 220, 120, 0.2);
+    }
+
+    .signin-btn {
+      width: 100%;
+      background-color: rgb(15, 220, 120);
+      color: black;
+      border: none;
+      padding: 12px;
+      border-radius: 4px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+      margin-top: 10px;
+    }
+
+    .signin-btn:hover {
+      background-color: rgb(5, 200, 100);
+    }
+
+    .signin-btn:disabled {
+      background-color: #95a5a6;
+      cursor: not-allowed;
+    }
+
+    .success-message {
+      background-color: #d4edda;
+      color: #155724;
+      padding: 10px;
+      border-radius: 4px;
+      margin-top: 20px;
+      text-align: center;
+      font-size: 14px;
+      border: 1px solid #c3e6cb;
+    }
+
+    .error-message {
+      background-color: #f8d7da;
+      color: #721c24;
+      padding: 10px;
+      border-radius: 4px;
+      margin-top: 20px;
+      text-align: center;
+      font-size: 14px;
+      border: 1px solid #f5c6cb;
+    }
+
+    .status-bar {
+      background-color: rgb(15, 220, 120);
+      color: black;
+      padding: 8px;
+      border-radius: 4px;
+      margin-bottom: 20px;
+      font-size: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .ip-info {
+      background-color: #f9f9f9;
+      padding: 10px;
+      border-radius: 4px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      border: 1px solid #e0e0e0;
+    }
+
+    .connection-status {
+      display: flex;
+      align-items: center;
+    }
+
+    .status-indicator {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background-color: #27ae60;
+      margin-right: 6px;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- 签到页面 -->
+  <div class="container" id="signin-container">
+    <h1>班级管理系统 - 学生端</h1>
+
+    <div class="status-bar">
+      <div>签到系统</div>
+      <div class="connection-status">
+        <div class="status-indicator"></div>
+        <span>已连接</span>
+      </div>
+    </div>
+
+    <div class="ip-info">
+      设备ID: <span id="current-device-id">获取中...</span>
+    </div>
+
+    <form id="signin-form">
+      <div class="form-group">
+        <label for="grade-select">选择年级</label>
+        <select id="grade-select" required>
+          <option value="">请选择年级</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="class-select">选择班级</label>
+        <select id="class-select" required disabled>
+          <option value="">请先选择年级</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="student-name">选择姓名</label>
+        <select id="student-name" required disabled>
+          <option value="">请先选择班级</option>
+        </select>
+      </div>
+
+      <button type="submit" class="signin-btn" id="signin-btn">提交签到</button>
+    </form>
+
+    <div id="message"></div>
+  </div>
+
+  <!-- 聊天室页面 -->
+  <div class="chat-container" id="chat-container" style="display: none;">
+    <div class="chat-left">
+      <div class="chat-header">
+        <h2>班级聊天室</h2>
+      </div>
+      <div class="chat-messages" id="chat-messages">
+        <!-- 聊天消息将在这里显示 -->
+      </div>
+      <div class="chat-input">
+        <input type="text" id="message-input" placeholder="输入消息...">
+        <button onclick="sendMessage()">发送</button>
+      </div>
+    </div>
+    <div class="chat-right">
+      <div class="chat-members" style="margin-bottom: 20px;">
+        <h3>聊天室成员</h3>
+        <div class="member-avatars" id="member-avatars" style="display: flex; flex-wrap: wrap; gap: 10px;">
+          <!-- 成员头像将在这里显示 -->
+        </div>
+      </div>
+      <div class="student-info">
+        <div class="student-info-avatar" id="info-avatar">-</div>
+        <div class="info-item">
+          <span class="info-label">姓名:</span> <span id="info-name">-</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">班级:</span> <span id="info-class">-</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">年级:</span> <span id="info-grade">-</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">设备ID:</span> <span id="info-device-id">-</span>
+        </div>
+      </div>
+      <div class="file-sharing-section" style="margin-top: 20px;">
+        <h3>文件共享空间</h3>
+        <div class="file-list" id="student-file-list"
+          style="height: 200px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 4px; padding: 10px;">
+          <!-- 文件列表将在这里显示 -->
+        </div>
+      </div>
+      <div class="homework-upload-section" style="margin-top: 20px;">
+        <h3>作业上传空间</h3>
+        <div class="file-drop-area" id="homework-drop"
+          style="border: 2px dashed #e0e0e0; border-radius: 4px; padding: 20px; text-align: center; margin-bottom: 10px;">
+          <p>拖拽作业文件到这里上传</p>
+          <input type="file" id="homework-input" multiple style="display: none;">
+          <button class="btn clear-btn" onclick="document.getElementById('homework-input').click()"
+            style="margin-top: 10px;">选择文件</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let ws;
+    let isConnected = false;
+    let heartbeatTimer;
+    let reconnectTimer;
+    const HEARTBEAT_INTERVAL = 30000; // 30秒
+    const RECONNECT_INTERVAL = 5000; // 5秒
+
+    // WebSocket服务器地址 - 可根据需要修改
+    const WEBSOCKET_SERVER = '192.168.3.6:3001'; // 使用指定IP地址
+
+    let currentStudent = {};
+    let currentClassId = '';
+    let currentGrade = '';
+    let chatMembers = [];
+
+    // 更新连接状态显示
+    function updateConnectionStatus() {
+      const statusIndicator = document.querySelector('.status-indicator');
+      const statusText = document.querySelector('.connection-status span');
+
+      if (isConnected) {
+        statusIndicator.style.backgroundColor = '#27ae60'; // 绿色
+        statusText.textContent = '已连接';
+      } else {
+        statusIndicator.style.backgroundColor = '#e74c3c'; // 红色
+        statusText.textContent = '未连接';
+      }
+    }
+
+    // 初始化WebSocket连接
+    function initWebSocket() {
+      // 清除之前的定时器
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+      }
+
+      ws = new WebSocket('ws://' + WEBSOCKET_SERVER);
+
+      ws.onopen = function () {
+        console.log('WebSocket连接已建立');
+        isConnected = true;
+        updateConnectionStatus();
+        // 注册为学生
+        ws.send(JSON.stringify({ type: 'register', role: 'student' }));
+      };
+
+      ws.onmessage = function (event) {
+        const data = JSON.parse(event.data);
+        if (data.type === 'studentData') {
+          studentData = data.studentData;
+          if (data.classNames) {
+            classNames = data.classNames;
+          }
+          if (data.gradeClassMap) {
+            gradeClassMap = data.gradeClassMap;
+          }
+          updateGradeSelect();
+        } else if (data.type === 'signinSuccess') {
+          showMessage(data.message, 'success');
+          // 进入聊天室
+          setTimeout(() => {
+            enterChatRoom();
+          }, 1000);
+        } else if (data.type === 'signinError') {
+          showMessage(data.message, 'error');
+        } else if (data.type === 'ping') {
+          // 收到服务器的心跳，回复pong
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'pong' }));
+          }
+        } else if (data.type === 'chatMessage') {
+          // 处理聊天消息
+          displayMessage(data);
+          // 如果是系统消息，且是学生加入聊天室，更新成员列表
+          if (data.studentName === '系统' && data.message.includes('加入聊天室')) {
+            const studentName = data.message.replace(' 加入聊天室', '');
+            addChatMember(studentName);
+          }
+        } else if (data.type === 'fileList') {
+          // 处理文件列表
+          if (data.classId === currentClassId) {
+            displayStudentFileList(data.files);
+          }
+        } else if (data.type === 'fileUploaded') {
+          // 处理文件上传
+          if (data.classId === currentClassId) {
+            // 获取当前文件列表并更新
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({
+                type: 'getFileList',
+                classId: currentClassId
+              }));
+            }
+          }
+        } else if (data.type === 'homeworkUploaded') {
+          // 处理作业上传成功
+          console.log('作业上传成功:', data);
+          alert('作业上传成功');
+        } else if (data.type === 'chatMember') {
+          // 处理聊天室成员消息
+          if (data.classId === currentClassId) {
+            addChatMember(data.studentName);
+          }
+        }
+      };
+
+      ws.onclose = function () {
+        console.log('WebSocket连接已关闭');
+        isConnected = false;
+        updateConnectionStatus();
+        // 尝试重连
+        reconnectTimer = setTimeout(initWebSocket, RECONNECT_INTERVAL);
+      };
+
+      ws.onerror = function (error) {
+        console.error('WebSocket错误:', error);
+        isConnected = false;
+        updateConnectionStatus();
+      };
+    }
+
+    let classNames = {};
+    let gradeClassMap = {};
+
+    // 更新年级选择框
+    function updateGradeSelect() {
+      const gradeSelect = document.getElementById('grade-select');
+      gradeSelect.innerHTML = '<option value="">请选择年级</option>';
+
+      for (const grade in gradeClassMap) {
+        const option = document.createElement('option');
+        option.value = grade;
+        option.textContent = grade;
+        gradeSelect.appendChild(option);
+      }
+    }
+
+    // 更新班级选择框
+    function updateClassSelect(grade) {
+      const classSelect = document.getElementById('class-select');
+      classSelect.innerHTML = '<option value="">请选择班级</option>';
+      classSelect.disabled = true;
+
+      if (!grade) return;
+
+      const classes = gradeClassMap[grade] || [];
+      if (classes.length > 0) {
+        classSelect.disabled = false;
+        classes.forEach(classId => {
+          const className = classNames[classId] || `班级${classId.replace('class', '')}`;
+          const option = document.createElement('option');
+          option.value = classId;
+          option.textContent = className;
+          classSelect.appendChild(option);
+        });
+      }
+    }
+
+    // 更新学生姓名选择框
+    function updateStudentSelect(classId) {
+      const studentSelect = document.getElementById('student-name');
+      studentSelect.innerHTML = '<option value="">请选择姓名</option>';
+      studentSelect.disabled = true;
+
+      if (!classId) return;
+
+      if (studentData[classId]) {
+        studentSelect.disabled = false;
+        studentData[classId].forEach(student => {
+          const option = document.createElement('option');
+          option.value = student.name;
+          option.textContent = student.name;
+          studentSelect.appendChild(option);
+        });
+      }
+    }
+
+    // 显示消息
+    function showMessage(message, type) {
+      const messageElement = document.getElementById('message');
+      messageElement.className = type === 'success' ? 'success-message' : 'error-message';
+      messageElement.textContent = message;
+
+      // 3秒后清除消息
+      setTimeout(() => {
+        messageElement.textContent = '';
+        messageElement.className = '';
+      }, 3000);
+    }
+
+    // 处理表单提交
+    document.getElementById('signin-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+
+      const grade = document.getElementById('grade-select').value;
+      const classId = document.getElementById('class-select').value;
+      const studentName = document.getElementById('student-name').value;
+
+      if (!grade || !classId || !studentName) {
+        showMessage('请选择年级、班级和姓名', 'error');
+        return;
+      }
+
+      if (!isConnected) {
+        showMessage('连接未建立，请稍后再试', 'error');
+        return;
+      }
+
+      // 保存学生信息
+      currentStudent = {
+        name: studentName,
+        classId: classId,
+        grade: grade
+      };
+      currentClassId = classId;
+      currentGrade = grade;
+
+      // 获取当前设备ID
+      const currentDeviceId = document.getElementById('current-device-id').textContent;
+
+      // 发送签到信息
+      ws.send(JSON.stringify({
+        type: 'signin',
+        classId: classId,
+        studentId: studentName, // 使用姓名作为ID，与教师端匹配
+        studentName: studentName,
+        deviceId: currentDeviceId
+      }));
+
+
+      // 不显示默认消息，等待服务器响应
+    });
+
+    // 监听年级选择变化
+    document.getElementById('grade-select').addEventListener('change', function () {
+      const grade = this.value;
+      updateClassSelect(grade);
+      // 重置班级和姓名选择框
+      document.getElementById('student-name').innerHTML = '<option value="">请先选择班级</option>';
+      document.getElementById('student-name').disabled = true;
+    });
+
+    // 监听班级选择变化
+    document.getElementById('class-select').addEventListener('change', function () {
+      const classId = this.value;
+      updateStudentSelect(classId);
+    });
+
+    // 获取设备ID
+    function getDeviceId() {
+      return new Promise((resolve) => {
+        // 检查localStorage中是否已有设备ID
+        let deviceId = localStorage.getItem('deviceId');
+        if (deviceId) {
+          resolve(deviceId);
+          return;
+        }
+
+        // 生成新的设备ID
+        deviceId = 'device_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        // 存储到localStorage
+        localStorage.setItem('deviceId', deviceId);
+        resolve(deviceId);
+      });
+    }
+
+    // 进入聊天室
+    function enterChatRoom() {
+      // 隐藏签到页面，显示聊天室
+      document.getElementById('signin-container').style.display = 'none';
+      document.getElementById('chat-container').style.display = 'flex';
+
+      // 填充学生信息
+      document.getElementById('info-name').textContent = currentStudent.name;
+      document.getElementById('info-class').textContent = classNames[currentStudent.classId] || `班级${currentStudent.classId.replace('class', '')}`;
+      document.getElementById('info-grade').textContent = currentStudent.grade;
+      document.getElementById('info-device-id').textContent = document.getElementById('current-device-id').textContent;
+
+      // 设置头像，显示姓名首字
+      const avatarText = currentStudent.name.charAt(0);
+      const infoAvatar = document.getElementById('info-avatar');
+      infoAvatar.textContent = avatarText;
+      infoAvatar.style.backgroundColor = 'rgb(15, 220, 120)';
+      infoAvatar.style.color = 'black';
+
+      // 发送进入聊天室消息
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'enterChat',
+          classId: currentClassId,
+          studentName: currentStudent.name
+        }));
+      }
+
+      // 自动添加教师到聊天室成员列表
+      addChatMember('教师');
+
+      // 初始化作业上传功能
+      initHomeworkUpload();
+    }
+
+    // 初始化作业上传功能
+    function initHomeworkUpload() {
+      const homeworkDrop = document.getElementById('homework-drop');
+      const homeworkInput = document.getElementById('homework-input');
+
+      // 处理拖拽事件
+      homeworkDrop.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        homeworkDrop.style.borderColor = 'rgb(15, 220, 120)';
+        homeworkDrop.style.backgroundColor = 'rgba(15, 220, 120, 0.1)';
+      });
+
+      homeworkDrop.addEventListener('dragleave', function (e) {
+        e.preventDefault();
+        homeworkDrop.style.borderColor = '#e0e0e0';
+        homeworkDrop.style.backgroundColor = 'transparent';
+      });
+
+      homeworkDrop.addEventListener('drop', function (e) {
+        e.preventDefault();
+        homeworkDrop.style.borderColor = '#e0e0e0';
+        homeworkDrop.style.backgroundColor = 'transparent';
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+          handleHomeworkUpload(files);
+        }
+      });
+
+      // 处理文件选择事件
+      homeworkInput.addEventListener('change', function (e) {
+        const files = e.target.files;
+        if (files.length > 0) {
+          handleHomeworkUpload(files);
+        }
+      });
+    }
+
+    // 添加聊天室成员
+    function addChatMember(studentName) {
+      // 检查成员是否已经存在
+      if (!chatMembers.includes(studentName)) {
+        chatMembers.push(studentName);
+        updateChatMembers();
+      }
+    }
+
+    // 更新聊天室成员列表
+    function updateChatMembers() {
+      const memberAvatars = document.getElementById('member-avatars');
+      if (memberAvatars) {
+        memberAvatars.innerHTML = '';
+        chatMembers.forEach(member => {
+          const avatar = document.createElement('div');
+          avatar.style.width = '40px';
+          avatar.style.height = '40px';
+          avatar.style.borderRadius = '50%';
+          avatar.style.backgroundColor = '#333333';
+          avatar.style.color = 'white';
+          avatar.style.display = 'flex';
+          avatar.style.alignItems = 'center';
+          avatar.style.justifyContent = 'center';
+          avatar.style.fontSize = '16px';
+          avatar.style.fontWeight = 'bold';
+          avatar.style.margin = '5px';
+          avatar.style.cursor = 'pointer';
+          avatar.title = member;
+          avatar.textContent = member.charAt(0);
+          memberAvatars.appendChild(avatar);
+        });
+      }
+    }
+
+    // 发送消息
+    function sendMessage() {
+      const messageInput = document.getElementById('message-input');
+      const message = messageInput.value.trim();
+
+      if (!message) return;
+
+      // 发送消息到服务器
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'chatMessage',
+          classId: currentClassId,
+          studentName: currentStudent.name,
+          message: message
+        }));
+
+        // 清空输入框
+        messageInput.value = '';
+      }
+    }
+
+    // 处理作业上传
+    function handleHomeworkUpload(files) {
+      console.log('处理作业上传，文件数量:', files.length);
+      Array.from(files).forEach(file => {
+        console.log('处理作业文件:', file.name, '大小:', file.size);
+        // 读取文件为Data URL
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          console.log('作业文件读取完成:', file.name);
+          const fileUrl = e.target.result;
+          // 发送文件信息到服务器
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            console.log('WebSocket连接状态:', ws.readyState);
+            const homeworkData = {
+              type: 'uploadHomework',
+              role: 'student',
+              studentName: currentStudent.name,
+              classId: currentClassId,
+              fileName: file.name,
+              fileSize: file.size,
+              fileUrl: fileUrl
+            };
+            console.log('发送作业数据:', homeworkData);
+            ws.send(JSON.stringify(homeworkData));
+            console.log('作业数据发送完成');
+          } else {
+            console.error('WebSocket连接未建立');
+          }
+        };
+        reader.onerror = function (error) {
+          console.error('作业文件读取失败:', error);
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    // 显示消息
+    function displayMessage(data) {
+      const chatMessages = document.getElementById('chat-messages');
+
+      // 系统消息居中显示
+      if (data.studentName === '系统') {
+        const systemMessageDiv = document.createElement('div');
+        systemMessageDiv.style.textAlign = 'center';
+        systemMessageDiv.style.marginBottom = '15px';
+        systemMessageDiv.style.fontSize = '12px';
+        systemMessageDiv.style.color = '#7f8c8d';
+        systemMessageDiv.textContent = data.message;
+        chatMessages.appendChild(systemMessageDiv);
+      } else {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${data.studentName === currentStudent.name ? 'own' : 'other'}`;
+
+        // 获取姓名首字作为头像内容
+        const avatarText = data.studentName.charAt(0);
+        // 根据发送人类型设置头像颜色
+        const avatarColor = data.studentName === '教师' ? 'rgb(15, 220, 120)' : '#333333';
+
+        messageDiv.innerHTML = `
+          <div class="message-avatar" style="background-color: ${avatarColor};">${avatarText}</div>
+          <div class="message-body">
+            <div class="message-header">
+              <span>${data.studentName}</span>
+              <span>${new Date().toLocaleTimeString()}</span>
+            </div>
+            <div class="message-content">${data.message}</div>
+          </div>
+        `;
+        chatMessages.appendChild(messageDiv);
+      }
+
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    // 监听回车键发送消息
+    document.getElementById('message-input').addEventListener('keypress', function (e) {
+      if (e.key === 'Enter') {
+        sendMessage();
+      }
+    });
+
+    // 转换文件大小单位
+    function formatFileSize(bytes) {
+      if (bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    // 显示学生端文件列表
+    function displayStudentFileList(files) {
+      const fileList = document.getElementById('student-file-list');
+      if (fileList) {
+        fileList.innerHTML = '';
+        if (files.length === 0) {
+          fileList.innerHTML = '<p>暂无文件</p>';
+          return;
+        }
+        files.forEach(file => {
+          const fileItem = document.createElement('div');
+          fileItem.style.display = 'flex';
+          fileItem.style.alignItems = 'center';
+          fileItem.style.padding = '8px';
+          fileItem.style.borderBottom = '1px solid #f0f0f0';
+          fileItem.innerHTML = `
+            <div style="flex: 1; min-width: 0;">
+              <div style="font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${file.name}</div>
+              <div style="font-size: 12px; color: #7f8c8d;">${formatFileSize(file.size)} | ${file.uploadTime}</div>
+            </div>
+            <a href="${file.url}" target="_blank" download="${file.name}" style="color: rgb(15, 220, 120); text-decoration: none; font-size: 12px; margin-left: 10px; white-space: nowrap;">下载</a>
+          `;
+          fileList.appendChild(fileItem);
+        });
+      }
+    }
+
+    // 页面加载时初始化
+    window.onload = function () {
+      initWebSocket();
+      // 获取并显示设备ID
+      getDeviceId().then(deviceId => {
+        document.getElementById('current-device-id').textContent = deviceId;
+      }).catch(error => {
+        document.getElementById('current-device-id').textContent = '获取失败';
+        console.error('获取设备ID失败:', error);
+      });
+    };
+  </script>
+</body>
+
+</html>
