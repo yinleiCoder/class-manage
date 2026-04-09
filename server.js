@@ -247,7 +247,32 @@ wss.on("connection", (ws) => {
               ),
             );
 
-            if (!existingStudent && !deviceIdUsed) {
+            // 如果是同一学生使用同一设备重新签到，允许通过
+            if (existingStudent && existingStudent.deviceId === data.deviceId) {
+              // 更新客户端连接信息
+              const clientIndex = clients.students.findIndex(
+                (client) => client.ws === ws,
+              );
+              if (clientIndex !== -1) {
+                clients.students[clientIndex] = {
+                  ws: ws,
+                  studentId: data.studentId,
+                  studentName: data.studentName,
+                  classId: data.classId,
+                };
+              }
+
+              // 向学生发送成功信息（恢复签到状态）
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(
+                  JSON.stringify({
+                    type: "signinSuccess",
+                    message: "欢迎回来！",
+                  }),
+                );
+              }
+            } else if (!existingStudent && !deviceIdUsed) {
+              // 新学生签到
               const student = {
                 id: data.studentId,
                 name: data.studentName,
@@ -290,7 +315,7 @@ wss.on("connection", (ws) => {
               if (ws.readyState === WebSocket.OPEN) {
                 let errorMessage = "";
                 if (existingStudent) {
-                  errorMessage = "您已经签到过了！";
+                  errorMessage = "您已经在其他设备上签到过了！";
                 } else if (deviceIdUsed) {
                   errorMessage =
                     "当前设备已经签到过其他学生，请使用自己的电脑签到！";
@@ -625,28 +650,8 @@ wss.on("connection", (ws) => {
       (client) => client.ws === ws,
     );
     if (studentIndex !== -1) {
-      const studentInfo = clients.students[studentIndex];
       clients.students.splice(studentIndex, 1);
-
-      // 移除学生签到信息
-      if (studentInfo.classId && studentInfo.studentId) {
-        const classInfo = classData[studentInfo.classId];
-        if (classInfo) {
-          const studentSigninIndex = classInfo.students.findIndex(
-            (s) => s.id === studentInfo.studentId,
-          );
-          if (studentSigninIndex !== -1) {
-            classInfo.students.splice(studentSigninIndex, 1);
-
-            // 广播移除签到信息给所有老师
-            broadcastToTeachers({
-              type: "signout",
-              classId: studentInfo.classId,
-              studentId: studentInfo.studentId,
-            });
-          }
-        }
-      }
+      // 注意：不移除学生签到信息，保持签到状态，允许学生重新连接时恢复
 
       // 广播学生连接数量
       broadcastStudentCount();
@@ -669,28 +674,8 @@ function checkClientConnections() {
     const ws = client.ws || client;
     if (ws.readyState !== WebSocket.OPEN) {
       // 连接已关闭，移除学生
-      const studentInfo = client;
       clients.students.splice(i, 1);
-
-      // 移除学生签到信息
-      if (studentInfo.classId && studentInfo.studentId) {
-        const classInfo = classData[studentInfo.classId];
-        if (classInfo) {
-          const studentSigninIndex = classInfo.students.findIndex(
-            (s) => s.id === studentInfo.studentId,
-          );
-          if (studentSigninIndex !== -1) {
-            classInfo.students.splice(studentSigninIndex, 1);
-
-            // 广播移除签到信息给所有老师
-            broadcastToTeachers({
-              type: "signout",
-              classId: studentInfo.classId,
-              studentId: studentInfo.studentId,
-            });
-          }
-        }
-      }
+      // 注意：不移除学生签到信息，保持签到状态
 
       // 广播学生连接数量
       broadcastStudentCount();

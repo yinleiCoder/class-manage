@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>班级管理系统 - 学生端</title>
+  <title>机房班级管理系统 - 学生端</title>
   <style>
     * {
       margin: 0;
@@ -26,7 +26,7 @@
       background-color: #ffffff;
       border-radius: 8px;
       box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-      padding: 40px;
+      padding: 20px;
       width: 100%;
       max-width: 400px;
       margin: 50px auto;
@@ -192,7 +192,7 @@
 
     label {
       display: block;
-      margin-bottom: 8px;
+      margin-bottom: 4px;
       font-weight: 500;
       color: #555;
     }
@@ -264,7 +264,7 @@
       color: black;
       padding: 8px;
       border-radius: 4px;
-      margin-bottom: 20px;
+      margin-bottom: 10px;
       font-size: 12px;
       display: flex;
       justify-content: space-between;
@@ -275,7 +275,7 @@
       background-color: #f9f9f9;
       padding: 10px;
       border-radius: 4px;
-      margin-bottom: 20px;
+      margin-bottom: 10px;
       font-size: 14px;
       border: 1px solid #e0e0e0;
     }
@@ -290,7 +290,7 @@
       height: 6px;
       border-radius: 50%;
       background-color: #27ae60;
-      margin-right: 6px;
+      margin-right: 4px;
     }
   </style>
 </head>
@@ -298,10 +298,9 @@
 <body>
   <!-- 签到页面 -->
   <div class="container" id="signin-container">
-    <h1>班级管理系统 - 学生端</h1>
-
+    <h1>机房班级管理系统（学生端）</h1>
     <div class="status-bar">
-      <div>签到系统</div>
+      <div>服务器连接状态</div>
       <div class="connection-status">
         <div class="status-indicator"></div>
         <span>已连接</span>
@@ -314,21 +313,21 @@
 
     <form id="signin-form">
       <div class="form-group">
-        <label for="grade-select">选择年级</label>
+        <label for="grade-select">年级</label>
         <select id="grade-select" required>
           <option value="">请选择年级</option>
         </select>
       </div>
 
       <div class="form-group">
-        <label for="class-select">选择班级</label>
+        <label for="class-select">班级</label>
         <select id="class-select" required disabled>
           <option value="">请先选择年级</option>
         </select>
       </div>
 
       <div class="form-group">
-        <label for="student-name">选择姓名</label>
+        <label for="student-name">姓名</label>
         <select id="student-name" required disabled>
           <option value="">请先选择班级</option>
         </select>
@@ -427,6 +426,8 @@
       }
     }
 
+    let savedSigninData = null;
+
     // 初始化WebSocket连接
     function initWebSocket() {
       // 清除之前的定时器
@@ -455,6 +456,13 @@
             gradeClassMap = data.gradeClassMap;
           }
           updateGradeSelect();
+
+          // 学生数据加载完成后，如果有保存的签到数据，尝试恢复
+          if (savedSigninData) {
+            setTimeout(() => {
+              restoreSigninState(savedSigninData);
+            }, 100);
+          }
         } else if (data.type === 'signinSuccess') {
           showMessage(data.message, 'success');
           // 进入聊天室
@@ -666,6 +674,15 @@
 
     // 进入聊天室
     function enterChatRoom() {
+      // 保存学生信息到localStorage
+      const savedStudentData = {
+        name: currentStudent.name,
+        classId: currentStudent.classId,
+        grade: currentStudent.grade,
+        deviceId: document.getElementById('current-device-id').textContent
+      };
+      localStorage.setItem('studentSigninData', JSON.stringify(savedStudentData));
+
       // 隐藏签到页面，显示聊天室
       document.getElementById('signin-container').style.display = 'none';
       document.getElementById('chat-container').style.display = 'flex';
@@ -909,15 +926,62 @@
       }
     }
 
+    // 自动恢复签到状态
+    function restoreSigninState(savedData) {
+      if (!savedData) return;
+
+      // 检查设备ID是否匹配
+      const currentDeviceId = document.getElementById('current-device-id').textContent;
+      if (savedData.deviceId !== currentDeviceId) {
+        console.log('设备ID不匹配，不恢复签到状态');
+        savedSigninData = null;
+        return;
+      }
+
+      // 保存学生信息
+      currentStudent = {
+        name: savedData.name,
+        classId: savedData.classId,
+        grade: savedData.grade
+      };
+      currentClassId = savedData.classId;
+      currentGrade = savedData.grade;
+
+      // 发送签到请求到服务器（这会允许重新进入聊天室）
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'signin',
+          classId: savedData.classId,
+          studentId: savedData.name,
+          studentName: savedData.name,
+          deviceId: currentDeviceId
+        }));
+      }
+      savedSigninData = null; // 清除已使用的保存数据
+    }
+
     // 页面加载时初始化
     window.onload = function () {
-      initWebSocket();
-      // 获取并显示设备ID
+      // 首先获取设备ID
       getDeviceId().then(deviceId => {
         document.getElementById('current-device-id').textContent = deviceId;
+
+        // 检查localStorage中是否有保存的签到信息
+        const savedDataStr = localStorage.getItem('studentSigninData');
+        if (savedDataStr) {
+          try {
+            savedSigninData = JSON.parse(savedDataStr);
+          } catch (e) {
+            console.error('解析保存的签到数据失败:', e);
+            savedSigninData = null;
+          }
+        }
+
+        initWebSocket();
       }).catch(error => {
         document.getElementById('current-device-id').textContent = '获取失败';
         console.error('获取设备ID失败:', error);
+        initWebSocket();
       });
     };
   </script>
