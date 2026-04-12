@@ -5,6 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>机房班级管理系统 - 教师端</title>
+
   <style>
     * {
       margin: 0;
@@ -57,7 +58,7 @@
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      margin-bottom: 15px;
+      margin-bottom: 0px;
       padding-bottom: 10px;
       border-bottom: 1px solid #e0e0e0;
     }
@@ -115,7 +116,7 @@
     .save-btn:hover {
       background-color: rgb(5, 200, 100);
     }
-    
+
     .status-bar {
       background-color: rgb(15, 220, 120);
       color: black;
@@ -148,7 +149,7 @@
       margin-bottom: 6px;
     }
 
-    .upload-section > div {
+    .upload-section>div {
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -244,18 +245,224 @@
       font-size: 14px;
       line-height: 1.5;
     }
+
+    /* 进度模态框样式 */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0, 0, 0, 0.4);
+    }
+
+    .modal-content {
+      background-color: #fefefe;
+      margin: 15% auto;
+      padding: 20px;
+      border: 1px solid #888;
+      width: 400px;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .modal-header {
+      padding: 10px 0;
+      border-bottom: 1px solid #e0e0e0;
+      margin-bottom: 20px;
+    }
+
+    .modal-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 12px;
+      background-color: #f0f0f0;
+      border-radius: 6px;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background-color: rgb(15, 220, 120);
+      border-radius: 6px;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    .progress-text {
+      text-align: center;
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 20px;
+    }
+
+    .modal-footer {
+      text-align: center;
+    }
+
+    .modal-button {
+      background-color: rgb(15, 220, 120);
+      color: black;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background-color 0.2s ease;
+    }
+
+    .modal-button:hover {
+      background-color: rgb(5, 200, 100);
+    }
+
+    /* 倒计时闹钟样式 */
+    .timer-section {
+      background-color: #f9f9f9;
+      padding: 15px;
+      border-radius: 4px;
+      border: 1px solid #e0e0e0;
+      margin-bottom: 10px;
+    }
+
+    .timer-section h3 {
+      margin-bottom: 10px;
+      color: #333;
+      font-size: 16px;
+    }
+
+    .timer-display {
+      font-size: 24px;
+      font-weight: 600;
+      text-align: center;
+      margin-bottom: 10px;
+      color: #333;
+      padding: 10px;
+      background-color: white;
+      border-radius: 4px;
+      border: 1px solid #e0e0e0;
+    }
+
+    .timer-status {
+      font-size: 14px;
+      text-align: center;
+      color: #7f8c8d;
+      margin-bottom: 10px;
+    }
+
+    .timer-controls {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    /* 广播消息模态框样式 */
+    #broadcast-modal .modal-content {
+      text-align: center;
+    }
+
+    #broadcast-message {
+      font-size: 18px;
+      font-weight: 600;
+      color: #333;
+      margin: 0;
+    }
   </style>
 </head>
 
 <body>
+  <!-- 进度模态框 -->
+  <div id="progress-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-title">文件上传中</h3>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+      <div class="progress-text" id="progress-text">0%</div>
+      <div class="modal-footer">
+        <button class="modal-button" id="modal-button" onclick="closeModal()">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 闹钟设置模态框 -->
+  <div id="timer-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title" id="timer-modal-title">设置倒计时</h3>
+      </div>
+      <div style="margin-bottom: 20px;">
+        <div style="margin-bottom: 10px;">
+          <label style="display: block; margin-bottom: 5px;">小时:</label>
+          <input type="number" id="timer-hours" min="0" max="23" value="0"
+            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+        </div>
+        <div style="margin-bottom: 10px;">
+          <label style="display: block; margin-bottom: 5px;">分钟:</label>
+          <input type="number" id="timer-minutes" min="0" max="59" value="0"
+            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+        </div>
+        <div style="margin-bottom: 10px;">
+          <label style="display: block; margin-bottom: 5px;">秒:</label>
+          <input type="number" id="timer-seconds" min="0" max="59" value="10"
+            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+        </div>
+        <div style="margin-bottom: 10px;">
+          <label style="display: block; margin-bottom: 5px;">闹钟消息:</label>
+          <input type="text" id="timer-message" placeholder="输入闹钟消息" value="时间到！"
+            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-button" onclick="closeTimerModal()">取消</button>
+        <button class="modal-button" onclick="saveTimerSettings()" style="margin-left: 10px;">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 广播消息模态框 -->
+  <div id="broadcast-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title" id="broadcast-modal-title">广播消息</h3>
+      </div>
+      <div style="margin-bottom: 20px; padding: 20px; background-color: #f9f9f9; border-radius: 4px;">
+        <p id="broadcast-message" style="font-size: 18px; text-align: center;"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-button" onclick="closeBroadcastModal()">确定</button>
+      </div>
+    </div>
+  </div>
+
   <div class="container">
     <h1>机房班级管理系统（教师端）</h1>
-    <p>盐亭县职业技术学校（精技楼机房）</p>
+    <p>盐亭县职业技术学校（精技楼机房）- 尹磊老师编程开发</p>
     <div class="status-bar">
       <div>学生电脑连接状态</div>
       <div class="connection-status">
         <div class="status-indicator"></div>
         <span>已连接</span>
+      </div>
+    </div>
+
+    <div class="broadcast-section"
+      style="background-color: #f9f9f9; padding: 15px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #e0e0e0;">
+      <h3>教师广播</h3>
+      <div style="display: flex; gap: 10px; margin-top: 10px;">
+        <input type="text" id="broadcast-input" placeholder="输入广播消息..."
+          style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+        <button class="btn clear-btn" onclick="sendBroadcast()">发送广播</button>
       </div>
     </div>
 
@@ -280,7 +487,7 @@
   <script>
     // WebSocket服务器地址 - 可根据需要修改
     const WEBSOCKET_SERVER = '192.168.3.6:3001'; // 使用指定IP地址
-    
+
     let ws;
     let isConnected = false;
     let heartbeatTimer;
@@ -292,6 +499,11 @@
 
     let allStudents = {}; // 存储所有学生信息
     let classData = {}; // 存储班级数据
+    let currentUpload = null; // 当前上传任务
+    let currentDownload = null; // 当前下载任务
+    let calledStudents = {}; // 存储每个班级已经点过的学生列表
+    let timerData = {}; // 存储每个班级的倒计时数据
+    let currentClassId = null; // 当前操作的班级ID
 
     // 更新连接状态显示
     function updateConnectionStatus() {
@@ -305,6 +517,33 @@
         statusIndicator.style.backgroundColor = '#e74c3c'; // 红色
         statusText.textContent = '未连接';
       }
+    }
+
+    // 显示进度模态框
+    function showModal(title) {
+      const modal = document.getElementById('progress-modal');
+      const modalTitle = document.getElementById('modal-title');
+      modalTitle.textContent = title;
+      modal.style.display = 'block';
+    }
+
+    // 隐藏进度模态框
+    function closeModal() {
+      const modal = document.getElementById('progress-modal');
+      modal.style.display = 'none';
+      // 取消当前上传任务
+      if (currentUpload) {
+        currentUpload.abort();
+        currentUpload = null;
+      }
+    }
+
+    // 更新进度
+    function updateProgress(progress) {
+      const progressFill = document.getElementById('progress-fill');
+      const progressText = document.getElementById('progress-text');
+      progressFill.style.width = `${progress}%`;
+      progressText.textContent = `${Math.round(progress)}%`;
     }
 
     // 初始化WebSocket连接
@@ -553,6 +792,21 @@
             <div class="class-actions">
               <button class="btn random-btn" onclick="randomCall('${classId}')">随机点名</button>
               <button class="btn save-btn" onclick="saveClassRecord('${classId}')">备案留存</button>
+              <button class="btn clear-btn" onclick="openTimerModal('${classId}')">设置闹钟</button>
+            </div>
+          </div>
+          <div class="timer-section" style="margin-top: 4px;">
+            <h3>倒计时闹钟</h3>
+            <div class="timer-display" id="${classId}-timer-display" style="font-size: 24px; font-weight: 600; text-align: center; margin-bottom: 10px; color: #333;">
+              未设置
+            </div>
+            <div class="timer-status" id="${classId}-timer-status" style="font-size: 14px; text-align: center; color: #7f8c8d; margin-bottom: 10px;">
+              状态: 未启动
+            </div>
+            <div class="timer-controls" style="display: flex; justify-content: center; gap: 10px;">
+              <button class="btn clear-btn" onclick="startTimer('${classId}')" id="${classId}-start-btn" disabled>开始</button>
+              <button class="btn save-btn" onclick="pauseTimer('${classId}')" id="${classId}-pause-btn" disabled>暂停</button>
+              <button class="btn random-btn" onclick="resetTimer('${classId}')" id="${classId}-reset-btn" disabled>重置</button>
             </div>
           </div>
           <div class="student-tiles" id="${classId}-list">
@@ -566,7 +820,7 @@
             <h3>文件共享空间</h3>
             <div class="file-drop-area" id="${classId}-file-drop" style="border: 2px dashed #e0e0e0; border-radius: 4px; padding: 20px; text-align: center; margin-bottom: 4px;">
               <p>拖拽文件到这里上传</p>
-              <input type="file" id="${classId}-file-input" multiple style="display: none;">
+              <input type="file" id="${classId}-file-input" multiple webkitdirectory directory style="display: none;">
               <button class="btn clear-btn" onclick="document.getElementById('${classId}-file-input').click()" style="margin-top: 10px;">选择文件</button>
             </div>
             <div class="file-list" id="${classId}-file-list" style="height: 200px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 4px; padding: 10px;">
@@ -598,17 +852,14 @@
 
     // 更新班级列表
     function updateClassLists(classData) {
-      // 只有在有学生数据时才更新签到状态
-      if (Object.keys(allStudents).length > 0) {
-        // 更新签到状态
-        for (const classId in classData) {
-          const signedStudents = classData[classId].students;
-          signedStudents.forEach(student => {
-            updateSigninStatus(classId, student);
-          });
-          // 确保统计信息更新
-          updateClassStats(classId);
-        }
+      // 更新签到状态
+      for (const classId in classData) {
+        const signedStudents = classData[classId].students;
+        signedStudents.forEach(student => {
+          updateSigninStatus(classId, student);
+        });
+        // 确保统计信息更新
+        updateClassStats(classId);
       }
     }
 
@@ -721,29 +972,32 @@
           });
         });
 
-        // 生成TXT内容
-        let txtContent = `班级: ${className}\n`;
-        txtContent += `生成时间: ${new Date().toLocaleString()}\n`;
-        txtContent += '\n';
-        txtContent += '学生姓名,签到IP,签到时间\n';
+        // 生成CSV内容（Excel兼容格式）
+        // 添加UTF-8 BOM以确保Excel正确识别
+        let csvContent = '\ufeff';
+        csvContent += `班级: ${className}\n`;
+        csvContent += `生成时间: ${new Date().toLocaleString()}\n`;
+        csvContent += '\n';
+        csvContent += '学生姓名,在线设备,签到时间\n';
 
         records.forEach(record => {
-          txtContent += `${record.studentName},${record.ip},${record.time}\n`;
+          csvContent += `${record.studentName},${record.ip},${record.time}\n`;
         });
 
-        // 创建并下载文件
-        const blob = new Blob([txtContent], { type: 'text/plain' });
+        // 创建并下载为CSV文件
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${className}_签到记录_${new Date().toISOString().slice(0, 10)}.txt`;
+        a.download = `${className}_签到记录_${new Date().toISOString().slice(0, 10)}.csv`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
 
         // 提示保存成功
-        alert('签到记录已保存为TXT文件');
+        alert('签到记录已保存为Excel文件');
+
       }
     }
 
@@ -756,6 +1010,24 @@
         if (studentTiles.length === 0) {
           alert('没有已签到的学生');
           return;
+        }
+
+        // 初始化班级的已点学生列表
+        if (!calledStudents[classId]) {
+          calledStudents[classId] = [];
+        }
+
+        // 过滤出未点过的学生
+        const unCalledStudents = studentTiles.filter(tile => {
+          const studentId = tile.dataset.studentId;
+          return !calledStudents[classId].includes(studentId);
+        });
+
+        // 如果所有学生都点过了，重置已点学生列表
+        if (unCalledStudents.length === 0) {
+          calledStudents[classId] = [];
+          alert('所有已签到的学生都已点过一遍，现在重新开始');
+          return randomCall(classId);
         }
 
         // 禁用按钮防止重复点击
@@ -777,12 +1049,12 @@
           });
 
           // 高亮当前学生
-          const currentTile = studentTiles[currentIndex];
+          const currentTile = unCalledStudents[currentIndex];
           currentTile.style.backgroundColor = 'rgb(35, 240, 140)'; // 主题色的浅色版本
           currentTile.style.transform = 'scale(1.1)';
 
           // 增加索引
-          currentIndex = (currentIndex + 1) % studentTiles.length;
+          currentIndex = (currentIndex + 1) % unCalledStudents.length;
           iteration++;
 
           // 逐渐减慢速度
@@ -795,9 +1067,15 @@
             setTimeout(animate, speed);
           } else {
             // 选择最终学生
-            const finalIndex = Math.floor(Math.random() * studentTiles.length);
+            const finalIndex = Math.floor(Math.random() * unCalledStudents.length);
+            const selectedTile = unCalledStudents[finalIndex];
+            const selectedStudentId = selectedTile.dataset.studentId;
+
+            // 将选中的学生添加到已点列表
+            calledStudents[classId].push(selectedStudentId);
+
             studentTiles.forEach((tile, index) => {
-              if (index === finalIndex) {
+              if (tile === selectedTile) {
                 tile.style.backgroundColor = 'rgb(35, 240, 140)'; // 主题色的浅色版本
                 tile.style.transform = 'scale(1.2)';
                 tile.style.boxShadow = '0 0 15px rgba(15, 220, 120, 0.6)';
@@ -903,8 +1181,35 @@
       if (e.key === 'Enter' && e.target.id.endsWith('-message-input')) {
         const classId = e.target.id.replace('-message-input', '');
         sendTeacherMessage(classId);
+      } else if (e.key === 'Enter' && e.target.id === 'broadcast-input') {
+        sendBroadcast();
       }
     });
+
+    // 发送广播消息
+    function sendBroadcast() {
+      const broadcastInput = document.getElementById('broadcast-input');
+      const message = broadcastInput.value.trim();
+
+      if (!message) {
+        alert('请输入广播消息');
+        return;
+      }
+
+      // 发送广播消息到服务器
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'broadcastMessage',
+          message: message
+        }));
+
+        // 清空输入框
+        broadcastInput.value = '';
+        alert('广播消息已发送');
+      } else {
+        alert('连接未建立，请稍后再试');
+      }
+    }
 
     // 初始化文件拖拽上传功能
     function initFileUpload() {
@@ -955,34 +1260,87 @@
       console.log('处理文件上传，班级ID:', classId, '文件数量:', files.length);
       Array.from(files).forEach(file => {
         console.log('处理文件:', file.name, '大小:', file.size);
-        // 读取文件为Data URL
+        uploadFileInChunks(classId, file);
+      });
+    }
+
+    // 分块上传文件
+    function uploadFileInChunks(classId, file) {
+      const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB每块
+      let offset = 0;
+      let totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+      let currentChunk = 0;
+      let fileId = Date.now() + Math.random().toString(36).substr(2, 9);
+
+      // 显示上传进度模态框
+      showModal(`上传文件: ${file.name}`);
+
+      // 创建上传任务对象
+      currentUpload = {
+        fileId: fileId,
+        abort: function () {
+          console.log('取消上传:', file.name);
+        }
+      };
+
+      // 上传下一块
+      function uploadNextChunk() {
+        if (offset >= file.size) {
+          // 上传完成
+          console.log('文件上传完成:', file.name);
+          closeModal();
+          return;
+        }
+
+        // 计算当前块的大小
+        const chunkSize = Math.min(CHUNK_SIZE, file.size - offset);
+        const chunk = file.slice(offset, offset + chunkSize);
+
+        // 读取当前块
         const reader = new FileReader();
         reader.onload = function (e) {
-          console.log('文件读取完成:', file.name);
-          const fileUrl = e.target.result;
-          // 发送文件信息到服务器
+          const chunkData = e.target.result;
+
+          // 发送块数据到服务器
           if (ws && ws.readyState === WebSocket.OPEN) {
-            console.log('WebSocket连接状态:', ws.readyState);
-            const fileData = {
-              type: 'uploadFile',
+            const chunkMessage = {
+              type: 'uploadFileChunk',
               role: 'teacher',
               classId: classId,
+              fileId: fileId,
               fileName: file.name,
               fileSize: file.size,
-              fileUrl: fileUrl
+              chunkIndex: currentChunk,
+              totalChunks: totalChunks,
+              chunkData: chunkData
             };
-            console.log('发送文件数据:', fileData);
-            ws.send(JSON.stringify(fileData));
-            console.log('文件数据发送完成');
+
+            ws.send(JSON.stringify(chunkMessage));
+
+            // 更新进度
+            currentChunk++;
+            offset += chunkSize;
+            const progress = (offset / file.size) * 100;
+            updateProgress(progress);
+
+            // 上传下一块
+            uploadNextChunk();
           } else {
             console.error('WebSocket连接未建立');
+            closeModal();
           }
         };
+
         reader.onerror = function (error) {
           console.error('文件读取失败:', error);
+          closeModal();
         };
-        reader.readAsDataURL(file);
-      });
+
+        reader.readAsDataURL(chunk);
+      }
+
+      // 开始上传
+      uploadNextChunk();
     }
 
     // 转换文件大小单位
@@ -1089,6 +1447,192 @@
       childList: true,
       subtree: true
     });
+
+    // 打开闹钟设置模态框
+    function openTimerModal(classId) {
+      currentClassId = classId;
+      const modal = document.getElementById('timer-modal');
+      modal.style.display = 'block';
+    }
+
+    // 关闭闹钟设置模态框
+    function closeTimerModal() {
+      const modal = document.getElementById('timer-modal');
+      modal.style.display = 'none';
+      currentClassId = null;
+    }
+
+    // 保存闹钟设置
+    function saveTimerSettings() {
+      if (!currentClassId) return;
+
+      const hours = parseInt(document.getElementById('timer-hours').value) || 0;
+      const minutes = parseInt(document.getElementById('timer-minutes').value) || 0;
+      const seconds = parseInt(document.getElementById('timer-seconds').value) || 0;
+      const message = document.getElementById('timer-message').value || '时间到！';
+
+      const totalSeconds = hours * 3600 + minutes * 60 + seconds;
+
+      if (totalSeconds <= 0) {
+        alert('请设置有效的倒计时时间');
+        return;
+      }
+
+      // 初始化该班级的计时器数据
+      if (!timerData[currentClassId]) {
+        timerData[currentClassId] = {
+          totalSeconds: totalSeconds,
+          remainingSeconds: totalSeconds,
+          interval: null,
+          isRunning: false,
+          message: message
+        };
+      } else {
+        // 停止当前计时器
+        if (timerData[currentClassId].interval) {
+          clearInterval(timerData[currentClassId].interval);
+        }
+        // 更新数据
+        timerData[currentClassId].totalSeconds = totalSeconds;
+        timerData[currentClassId].remainingSeconds = totalSeconds;
+        timerData[currentClassId].isRunning = false;
+        timerData[currentClassId].message = message;
+      }
+
+      // 更新显示
+      updateTimerDisplay(currentClassId);
+      // 启用控制按钮
+      document.getElementById(`${currentClassId}-start-btn`).disabled = false;
+      document.getElementById(`${currentClassId}-reset-btn`).disabled = false;
+      document.getElementById(`${currentClassId}-pause-btn`).disabled = true;
+
+      // 关闭模态框
+      closeTimerModal();
+    }
+
+    // 更新计时器显示
+    function updateTimerDisplay(classId) {
+      const timerInfo = timerData[classId];
+      if (!timerInfo) return;
+
+      const display = document.getElementById(`${classId}-timer-display`);
+      const status = document.getElementById(`${classId}-timer-status`);
+
+      if (display && status) {
+        const hours = Math.floor(timerInfo.remainingSeconds / 3600);
+        const minutes = Math.floor((timerInfo.remainingSeconds % 3600) / 60);
+        const seconds = timerInfo.remainingSeconds % 60;
+
+        display.textContent = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+        if (timerInfo.isRunning) {
+          status.textContent = '状态: 运行中';
+          status.style.color = '#27ae60'; // 绿色
+        } else {
+          status.textContent = '状态: 已暂停';
+          status.style.color = '#f39c12'; // 橙色
+        }
+      }
+    }
+
+    // 开始倒计时
+    function startTimer(classId) {
+      const timerInfo = timerData[classId];
+      if (!timerInfo || timerInfo.isRunning) return;
+
+      timerInfo.isRunning = true;
+      updateTimerDisplay(classId);
+
+      // 启用暂停按钮，禁用开始按钮
+      document.getElementById(`${classId}-pause-btn`).disabled = false;
+      document.getElementById(`${classId}-start-btn`).disabled = true;
+
+      // 开始倒计时
+      timerInfo.interval = setInterval(function () {
+        timerInfo.remainingSeconds--;
+        updateTimerDisplay(classId);
+
+        if (timerInfo.remainingSeconds <= 0) {
+          clearInterval(timerInfo.interval);
+          timerInfo.isRunning = false;
+          timerComplete(classId);
+        }
+      }, 1000);
+    }
+
+    // 暂停倒计时
+    function pauseTimer(classId) {
+      const timerInfo = timerData[classId];
+      if (!timerInfo || !timerInfo.isRunning) return;
+
+      clearInterval(timerInfo.interval);
+      timerInfo.isRunning = false;
+      updateTimerDisplay(classId);
+
+      // 启用开始按钮，禁用暂停按钮
+      document.getElementById(`${classId}-start-btn`).disabled = false;
+      document.getElementById(`${classId}-pause-btn`).disabled = true;
+    }
+
+    // 重置倒计时
+    function resetTimer(classId) {
+      const timerInfo = timerData[classId];
+      if (!timerInfo) return;
+
+      // 停止计时器
+      if (timerInfo.interval) {
+        clearInterval(timerInfo.interval);
+      }
+
+      // 重置时间
+      timerInfo.remainingSeconds = timerInfo.totalSeconds;
+      timerInfo.isRunning = false;
+
+      // 更新显示
+      updateTimerDisplay(classId);
+
+      // 重置按钮状态
+      document.getElementById(`${classId}-start-btn`).disabled = false;
+      document.getElementById(`${classId}-pause-btn`).disabled = true;
+      document.getElementById(`${classId}-reset-btn`).disabled = false;
+    }
+
+    // 倒计时完成
+    function timerComplete(classId) {
+      const timerInfo = timerData[classId];
+      if (!timerInfo) return;
+
+      // 显示广播消息
+      showBroadcastModal(timerInfo.message);
+
+      // 发送广播消息到服务器
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'broadcastMessage',
+          classId: classId,
+          message: timerInfo.message
+        }));
+      }
+
+      // 重置按钮状态
+      document.getElementById(`${classId}-start-btn`).disabled = false;
+      document.getElementById(`${classId}-pause-btn`).disabled = true;
+      document.getElementById(`${classId}-reset-btn`).disabled = false;
+    }
+
+    // 显示广播消息模态框
+    function showBroadcastModal(message) {
+      const modal = document.getElementById('broadcast-modal');
+      const messageElement = document.getElementById('broadcast-message');
+      messageElement.textContent = message;
+      modal.style.display = 'block';
+    }
+
+    // 关闭广播消息模态框
+    function closeBroadcastModal() {
+      const modal = document.getElementById('broadcast-modal');
+      modal.style.display = 'none';
+    }
   </script>
 </body>
 

@@ -37,6 +37,45 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // 处理上传文件的静态文件请求
+  if (req.url.startsWith("/uploads/")) {
+    const filePath = path.join(__dirname, req.url);
+    if (fs.existsSync(filePath)) {
+      const extname = String(path.extname(filePath)).toLowerCase();
+      const mimeTypes = {
+        ".html": "text/html",
+        ".js": "text/javascript",
+        ".css": "text/css",
+        ".pdf": "application/pdf",
+        ".doc": "application/msword",
+        ".docx":
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".xls": "application/vnd.ms-excel",
+        ".xlsx":
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ".ppt": "application/vnd.ms-powerpoint",
+        ".pptx":
+          "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".gif": "image/gif",
+        ".zip": "application/zip",
+        ".rar": "application/x-rar-compressed",
+      };
+
+      const contentType = mimeTypes[extname] || "application/octet-stream";
+
+      res.writeHead(200, { "Content-Type": contentType });
+      const stream = fs.createReadStream(filePath);
+      stream.pipe(res);
+    } else {
+      res.writeHead(404, { "Content-Type": "text/html" });
+      res.end("File not found", "utf-8");
+    }
+    return;
+  }
+
   // 处理静态文件请求
   let filePath = "." + req.url;
   if (filePath === "./") {
@@ -73,7 +112,17 @@ const server = http.createServer((req, res) => {
   });
 });
 
-const wss = new WebSocket.Server({ server });
+// 创建WebSocket服务器，增加消息大小限制
+const wss = new WebSocket.Server({
+  server,
+  maxPayload: 1024 * 1024 * 1024, // 1GB
+});
+
+// 创建文件存储目录
+const uploadDir = path.join(__dirname, "uploads");
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
 
 // 存储班级签到数据
 const classData = {
@@ -81,6 +130,10 @@ const classData = {
   class2: { name: "班级2", students: [], files: [] },
   class3: { name: "班级3", students: [], files: [] },
 };
+
+// 存储正在上传的文件块
+const uploadChunks = {};
+const homeworkChunks = {};
 
 // 存储学生名单数据
 let studentData = {
@@ -180,7 +233,13 @@ wss.on("connection", (ws) => {
               }),
             );
           } else if (data.role === "student") {
-            clients.students.push(ws);
+            // 存储为包含ws属性的对象，而不是直接存储WebSocket对象
+            clients.students.push({
+              ws: ws,
+              studentId: null,
+              studentName: null,
+              classId: null,
+            });
             // 发送学生名单数据给学生
             ws.send(
               JSON.stringify({
@@ -231,6 +290,29 @@ wss.on("connection", (ws) => {
               classNames: classNames,
               gradeClassMap: gradeClassMap,
             });
+
+            // 广播当前班级数据给所有教师，包括签到状态
+            broadcastToTeachers({
+              type: "init",
+              classData: classData,
+            });
+
+            // 检查所有已连接的学生，广播他们的签到状态
+            clients.students.forEach((client) => {
+              if (client.studentId && client.classId) {
+                const existingStudent = classData[client.classId].students.find(
+                  (s) => s.id === client.studentId,
+                );
+                if (existingStudent) {
+                  // 广播签到信息给所有老师
+                  broadcastToTeachers({
+                    type: "signin",
+                    classId: client.classId,
+                    student: existingStudent,
+                  });
+                }
+              }
+            });
           }
           break;
 
@@ -261,6 +343,13 @@ wss.on("connection", (ws) => {
                   classId: data.classId,
                 };
               }
+
+              // 广播签到信息给所有老师（确保教师端同步更新）
+              broadcastToTeachers({
+                type: "signin",
+                classId: data.classId,
+                student: existingStudent,
+              });
 
               // 向学生发送成功信息（恢复签到状态）
               if (ws.readyState === WebSocket.OPEN) {
@@ -419,39 +508,193 @@ wss.on("connection", (ws) => {
           console.log("收到文件上传请求:", data);
           if (data.role === "teacher" && classData[data.classId]) {
             console.log("处理教师文件上传，班级ID:", data.classId);
-            const file = {
-              id: Date.now() + Math.random().toString(36).substr(2, 9),
-              name: data.fileName,
-              size: data.fileSize,
-              url: data.fileUrl,
-              uploadTime: new Date().toLocaleString(),
-            };
-            console.log("创建文件对象:", file);
-            if (!classData[data.classId].files) {
-              classData[data.classId].files = [];
-            }
-            classData[data.classId].files.push(file);
-            console.log(
-              "文件添加到班级:",
-              data.classId,
-              "当前文件数量:",
-              classData[data.classId].files.length,
-            );
 
-            // 广播文件上传消息给所有教师和学生
-            const fileUploadedMessage = {
-              type: "fileUploaded",
-              classId: data.classId,
-              file: file,
-            };
-            console.log("广播文件上传消息:", fileUploadedMessage);
-            console.log("教师数量:", clients.teachers.length);
-            console.log("学生数量:", clients.students.length);
-            broadcastToTeachers(fileUploadedMessage);
-            broadcastToStudents(fileUploadedMessage);
-            console.log("文件上传处理完成");
+            try {
+              // 从Data URL中提取Base64数据
+              const base64Data = data.fileUrl.split(",")[1];
+              const buffer = Buffer.from(base64Data, "base64");
+
+              // 创建班级文件夹
+              const classDir = path.join(uploadDir, data.classId);
+              if (!fs.existsSync(classDir)) {
+                fs.mkdirSync(classDir, { recursive: true });
+              }
+
+              // 生成唯一文件名
+              const fileName = `${Date.now()}_${data.fileName}`;
+              const filePath = path.join(classDir, fileName);
+
+              // 保存文件到磁盘
+              fs.writeFileSync(filePath, buffer);
+              console.log(`保存文件到磁盘: ${filePath}`);
+
+              // 创建文件对象，存储相对路径
+              const file = {
+                id: Date.now() + Math.random().toString(36).substr(2, 9),
+                name: data.fileName,
+                size: data.fileSize,
+                url: `/uploads/${data.classId}/${fileName}`,
+                uploadTime: new Date().toLocaleString(),
+              };
+              console.log("创建文件对象:", file);
+              if (!classData[data.classId].files) {
+                classData[data.classId].files = [];
+              }
+              classData[data.classId].files.push(file);
+              console.log(
+                "文件添加到班级:",
+                data.classId,
+                "当前文件数量:",
+                classData[data.classId].files.length,
+              );
+
+              // 广播文件上传消息给所有教师和学生
+              const fileUploadedMessage = {
+                type: "fileUploaded",
+                classId: data.classId,
+                file: file,
+              };
+              console.log("广播文件上传消息:", fileUploadedMessage);
+              console.log("教师数量:", clients.teachers.length);
+              console.log("学生数量:", clients.students.length);
+              broadcastToTeachers(fileUploadedMessage);
+              broadcastToStudents(fileUploadedMessage);
+              console.log("文件上传处理完成");
+            } catch (error) {
+              console.error("文件上传失败:", error);
+            }
           } else {
             console.error("文件上传失败: 权限不足或班级不存在");
+          }
+          break;
+
+        case "uploadFileChunk":
+          // 处理文件分块上传
+          console.log("收到文件分块上传请求:", data);
+          if (data.role === "teacher" && classData[data.classId]) {
+            console.log(
+              "处理教师文件分块上传，班级ID:",
+              data.classId,
+              "文件ID:",
+              data.fileId,
+            );
+
+            try {
+              // 初始化上传任务
+              if (!uploadChunks[data.fileId]) {
+                uploadChunks[data.fileId] = {
+                  fileName: data.fileName,
+                  fileSize: data.fileSize,
+                  totalChunks: data.totalChunks,
+                  chunks: {},
+                  classId: data.classId,
+                };
+              }
+
+              // 存储当前块
+              const base64Data = data.chunkData.split(",")[1];
+              const buffer = Buffer.from(base64Data, "base64");
+              uploadChunks[data.fileId].chunks[data.chunkIndex] = buffer;
+
+              console.log(
+                `存储文件块: ${data.fileId}, 块索引: ${data.chunkIndex}, 总块数: ${data.totalChunks}`,
+              );
+
+              // 检查是否所有块都已上传
+              if (
+                Object.keys(uploadChunks[data.fileId].chunks).length ===
+                data.totalChunks
+              ) {
+                console.log(`所有块上传完成，开始合并文件: ${data.fileName}`);
+
+                // 创建班级文件夹
+                const classDir = path.join(uploadDir, data.classId);
+                if (!fs.existsSync(classDir)) {
+                  fs.mkdirSync(classDir, { recursive: true });
+                }
+
+                // 处理文件路径，支持文件夹上传
+                const originalFileName = data.fileName;
+                const uniqueFileName = `${Date.now()}_${originalFileName.replace(/\//g, "_")}`;
+
+                // 提取目录路径（如果有）
+                const pathParts = originalFileName.split("/");
+                let relativePath = "";
+                let fileName = uniqueFileName;
+
+                if (pathParts.length > 1) {
+                  // 有目录结构，提取目录部分
+                  relativePath = pathParts.slice(0, -1).join("/");
+                  fileName = pathParts[pathParts.length - 1];
+                }
+
+                // 创建完整的目录结构
+                let finalDir = classDir;
+                if (relativePath) {
+                  finalDir = path.join(classDir, relativePath);
+                  if (!fs.existsSync(finalDir)) {
+                    fs.mkdirSync(finalDir, { recursive: true });
+                  }
+                }
+
+                // 生成最终文件路径
+                const filePath = path.join(finalDir, fileName);
+
+                // 合并块并保存文件
+                const writeStream = fs.createWriteStream(filePath);
+                for (let i = 0; i < data.totalChunks; i++) {
+                  writeStream.write(uploadChunks[data.fileId].chunks[i]);
+                }
+                writeStream.end();
+
+                // 当文件写入完成后
+                writeStream.on("finish", () => {
+                  console.log(`文件合并完成: ${filePath}`);
+
+                  // 创建文件对象，存储相对路径
+                  const file = {
+                    id: Date.now() + Math.random().toString(36).substr(2, 9),
+                    name: originalFileName,
+                    size: data.fileSize,
+                    url: `/uploads/${data.classId}/${relativePath ? relativePath + "/" : ""}${fileName}`,
+                    uploadTime: new Date().toLocaleString(),
+                  };
+                  console.log("创建文件对象:", file);
+                  if (!classData[data.classId].files) {
+                    classData[data.classId].files = [];
+                  }
+                  classData[data.classId].files.push(file);
+                  console.log(
+                    "文件添加到班级:",
+                    data.classId,
+                    "当前文件数量:",
+                    classData[data.classId].files.length,
+                  );
+
+                  // 广播文件上传消息给所有教师和学生
+                  const fileUploadedMessage = {
+                    type: "fileUploaded",
+                    classId: data.classId,
+                    file: file,
+                  };
+                  console.log("广播文件上传消息:", fileUploadedMessage);
+                  broadcastToTeachers(fileUploadedMessage);
+                  broadcastToStudents(fileUploadedMessage);
+                  console.log("文件分块上传处理完成");
+
+                  // 清理临时数据
+                  delete uploadChunks[data.fileId];
+                });
+              }
+            } catch (error) {
+              console.error("文件分块上传失败:", error);
+              // 清理临时数据
+              if (uploadChunks[data.fileId]) {
+                delete uploadChunks[data.fileId];
+              }
+            }
+          } else {
+            console.error("文件分块上传失败: 权限不足或班级不存在");
           }
           break;
 
@@ -465,48 +708,221 @@ wss.on("connection", (ws) => {
               "学生姓名:",
               data.studentName,
             );
-            const homework = {
-              id: Date.now() + Math.random().toString(36).substr(2, 9),
-              studentName: data.studentName,
-              fileName: data.fileName,
-              fileSize: data.fileSize,
-              fileUrl: data.fileUrl,
-              uploadTime: new Date().toLocaleString(),
-            };
-            console.log("创建作业对象:", homework);
-            if (!classData[data.classId].homeworks) {
-              classData[data.classId].homeworks = [];
-            }
-            classData[data.classId].homeworks.push(homework);
-            console.log(
-              "作业添加到班级:",
-              data.classId,
-              "当前作业数量:",
-              classData[data.classId].homeworks.length,
-            );
 
-            // 广播作业上传消息给所有教师
-            const homeworkUploadedMessage = {
-              type: "homeworkUploaded",
-              classId: data.classId,
-              homework: homework,
-            };
-            console.log("广播作业上传消息:", homeworkUploadedMessage);
-            console.log("教师数量:", clients.teachers.length);
-            broadcastToTeachers(homeworkUploadedMessage);
+            try {
+              // 从Data URL中提取Base64数据
+              const base64Data = data.fileUrl.split(",")[1];
+              const buffer = Buffer.from(base64Data, "base64");
 
-            // 发送作业上传成功消息给学生
-            if (ws.readyState === WebSocket.OPEN) {
-              ws.send(
-                JSON.stringify({
-                  type: "homeworkUploaded",
-                  message: "作业上传成功",
-                }),
+              // 创建班级作业文件夹
+              const classHomeworkDir = path.join(
+                uploadDir,
+                data.classId,
+                "homeworks",
               );
+              if (!fs.existsSync(classHomeworkDir)) {
+                fs.mkdirSync(classHomeworkDir, { recursive: true });
+              }
+
+              // 生成唯一文件名
+              const fileName = `${Date.now()}_${data.fileName}`;
+              const filePath = path.join(classHomeworkDir, fileName);
+
+              // 保存文件到磁盘
+              fs.writeFileSync(filePath, buffer);
+              console.log(`保存作业文件到磁盘: ${filePath}`);
+
+              // 创建作业对象，存储相对路径
+              const homework = {
+                id: Date.now() + Math.random().toString(36).substr(2, 9),
+                studentName: data.studentName,
+                fileName: data.fileName,
+                fileSize: data.fileSize,
+                fileUrl: `/uploads/${data.classId}/homeworks/${fileName}`,
+                uploadTime: new Date().toLocaleString(),
+              };
+              console.log("创建作业对象:", homework);
+              if (!classData[data.classId].homeworks) {
+                classData[data.classId].homeworks = [];
+              }
+              classData[data.classId].homeworks.push(homework);
+              console.log(
+                "作业添加到班级:",
+                data.classId,
+                "当前作业数量:",
+                classData[data.classId].homeworks.length,
+              );
+
+              // 广播作业上传消息给所有教师
+              const homeworkUploadedMessage = {
+                type: "homeworkUploaded",
+                classId: data.classId,
+                homework: homework,
+              };
+              console.log("广播作业上传消息:", homeworkUploadedMessage);
+              console.log("教师数量:", clients.teachers.length);
+              broadcastToTeachers(homeworkUploadedMessage);
+
+              // 发送作业上传成功消息给学生
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(
+                  JSON.stringify({
+                    type: "homeworkUploaded",
+                    message: "作业上传成功",
+                  }),
+                );
+              }
+              console.log("作业上传处理完成");
+            } catch (error) {
+              console.error("作业上传失败:", error);
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(
+                  JSON.stringify({
+                    type: "homeworkError",
+                    message: "作业上传失败，请稍后再试",
+                  }),
+                );
+              }
             }
-            console.log("作业上传处理完成");
           } else {
             console.error("作业上传失败: 权限不足或班级不存在");
+          }
+          break;
+
+        case "uploadHomeworkChunk":
+          // 处理作业分块上传
+          console.log("收到作业分块上传请求:", data);
+          if (data.role === "student" && classData[data.classId]) {
+            console.log(
+              "处理学生作业分块上传，班级ID:",
+              data.classId,
+              "文件ID:",
+              data.fileId,
+            );
+
+            try {
+              // 初始化上传任务
+              if (!homeworkChunks[data.fileId]) {
+                homeworkChunks[data.fileId] = {
+                  studentName: data.studentName,
+                  fileName: data.fileName,
+                  fileSize: data.fileSize,
+                  totalChunks: data.totalChunks,
+                  chunks: {},
+                  classId: data.classId,
+                  ws: ws,
+                };
+              }
+
+              // 存储当前块
+              const base64Data = data.chunkData.split(",")[1];
+              const buffer = Buffer.from(base64Data, "base64");
+              homeworkChunks[data.fileId].chunks[data.chunkIndex] = buffer;
+
+              console.log(
+                `存储作业块: ${data.fileId}, 块索引: ${data.chunkIndex}, 总块数: ${data.totalChunks}`,
+              );
+
+              // 检查是否所有块都已上传
+              if (
+                Object.keys(homeworkChunks[data.fileId].chunks).length ===
+                data.totalChunks
+              ) {
+                console.log(
+                  `所有块上传完成，开始合并作业文件: ${data.fileName}`,
+                );
+
+                // 创建班级作业文件夹
+                const classHomeworkDir = path.join(
+                  uploadDir,
+                  data.classId,
+                  "homeworks",
+                );
+                if (!fs.existsSync(classHomeworkDir)) {
+                  fs.mkdirSync(classHomeworkDir, { recursive: true });
+                }
+
+                // 生成唯一文件名
+                const fileName = `${Date.now()}_${data.fileName}`;
+                const filePath = path.join(classHomeworkDir, fileName);
+
+                // 合并块并保存文件
+                const writeStream = fs.createWriteStream(filePath);
+                for (let i = 0; i < data.totalChunks; i++) {
+                  writeStream.write(homeworkChunks[data.fileId].chunks[i]);
+                }
+                writeStream.end();
+
+                // 当文件写入完成后
+                writeStream.on("finish", () => {
+                  console.log(`作业文件合并完成: ${filePath}`);
+
+                  // 创建作业对象，存储相对路径
+                  const homework = {
+                    id: Date.now() + Math.random().toString(36).substr(2, 9),
+                    studentName: data.studentName,
+                    fileName: data.fileName,
+                    fileSize: data.fileSize,
+                    fileUrl: `/uploads/${data.classId}/homeworks/${fileName}`,
+                    uploadTime: new Date().toLocaleString(),
+                  };
+                  console.log("创建作业对象:", homework);
+                  if (!classData[data.classId].homeworks) {
+                    classData[data.classId].homeworks = [];
+                  }
+                  classData[data.classId].homeworks.push(homework);
+                  console.log(
+                    "作业添加到班级:",
+                    data.classId,
+                    "当前作业数量:",
+                    classData[data.classId].homeworks.length,
+                  );
+
+                  // 广播作业上传消息给所有教师
+                  const homeworkUploadedMessage = {
+                    type: "homeworkUploaded",
+                    classId: data.classId,
+                    homework: homework,
+                  };
+                  console.log("广播作业上传消息:", homeworkUploadedMessage);
+                  broadcastToTeachers(homeworkUploadedMessage);
+
+                  // 发送作业上传成功消息给学生
+                  if (
+                    homeworkChunks[data.fileId].ws.readyState === WebSocket.OPEN
+                  ) {
+                    homeworkChunks[data.fileId].ws.send(
+                      JSON.stringify({
+                        type: "homeworkUploaded",
+                        message: "作业上传成功",
+                      }),
+                    );
+                  }
+                  console.log("作业分块上传处理完成");
+
+                  // 清理临时数据
+                  delete homeworkChunks[data.fileId];
+                });
+              }
+            } catch (error) {
+              console.error("作业分块上传失败:", error);
+              // 清理临时数据
+              if (homeworkChunks[data.fileId]) {
+                if (
+                  homeworkChunks[data.fileId].ws.readyState === WebSocket.OPEN
+                ) {
+                  homeworkChunks[data.fileId].ws.send(
+                    JSON.stringify({
+                      type: "homeworkError",
+                      message: "作业上传失败，请稍后再试",
+                    }),
+                  );
+                }
+                delete homeworkChunks[data.fileId];
+              }
+            }
+          } else {
+            console.error("作业分块上传失败: 权限不足或班级不存在");
           }
           break;
 
@@ -545,14 +961,34 @@ wss.on("connection", (ws) => {
             }
 
             try {
-              // 保存作业文件
+              // 保存作业文件并按学生姓名分类
+              const studentFolders = {};
               for (const homework of homeworks) {
-                // 从Data URL中提取Base64数据
-                const base64Data = homework.fileUrl.split(",")[1];
-                const buffer = Buffer.from(base64Data, "base64");
-                const filePath = path.join(classTempDir, homework.fileName);
-                fs.writeFileSync(filePath, buffer);
-                console.log(`保存作业文件: ${homework.fileName}`);
+                // 从磁盘读取作业文件
+                const filePath = path.join(__dirname, homework.fileUrl);
+                if (fs.existsSync(filePath)) {
+                  // 创建以学生姓名命名的文件夹
+                  const studentFolder = path.join(
+                    classTempDir,
+                    homework.studentName,
+                  );
+                  if (!fs.existsSync(studentFolder)) {
+                    fs.mkdirSync(studentFolder, { recursive: true });
+                    studentFolders[homework.studentName] = studentFolder;
+                  }
+
+                  // 复制文件到学生文件夹中
+                  const destFilePath = path.join(
+                    studentFolder,
+                    homework.fileName,
+                  );
+                  fs.copyFileSync(filePath, destFilePath);
+                  console.log(
+                    `保存作业文件: ${homework.studentName}/${homework.fileName}`,
+                  );
+                } else {
+                  console.error(`作业文件不存在: ${filePath}`);
+                }
               }
 
               // 创建ZIP文件
@@ -560,11 +996,14 @@ wss.on("connection", (ws) => {
               const zipFileName = `homework_${data.classId}_${Date.now()}.zip`;
               const zipFilePath = path.join(tempDir, zipFileName);
 
-              // 添加所有文件到ZIP
-              const files = fs.readdirSync(classTempDir);
-              files.forEach((file) => {
-                const filePath = path.join(classTempDir, file);
-                zip.addLocalFile(filePath, "");
+              // 添加所有学生文件夹到ZIP
+              Object.keys(studentFolders).forEach((studentName) => {
+                const studentFolder = studentFolders[studentName];
+                const files = fs.readdirSync(studentFolder);
+                files.forEach((file) => {
+                  const filePath = path.join(studentFolder, file);
+                  zip.addLocalFile(filePath, studentName);
+                });
               });
 
               // 生成ZIP文件
@@ -630,6 +1069,25 @@ wss.on("connection", (ws) => {
             }
           }
           break;
+
+        case "broadcastMessage":
+          // 处理广播消息
+          console.log("收到广播消息请求:", data);
+          // 广播消息给所有学生
+          clients.students.forEach((client) => {
+            // 检查连接状态
+            if (client.ws && client.ws.readyState === WebSocket.OPEN) {
+              // 发送广播消息给所有学生
+              client.ws.send(
+                JSON.stringify({
+                  type: "broadcastMessage",
+                  message: data.message,
+                }),
+              );
+            }
+          });
+          console.log("广播消息处理完成");
+          break;
       }
     } catch (error) {
       console.error("Error parsing message:", error);
@@ -650,8 +1108,16 @@ wss.on("connection", (ws) => {
       (client) => client.ws === ws,
     );
     if (studentIndex !== -1) {
+      const student = clients.students[studentIndex];
       clients.students.splice(studentIndex, 1);
       // 注意：不移除学生签到信息，保持签到状态，允许学生重新连接时恢复
+
+      // 广播学生下线消息给所有教师
+      broadcastToTeachers({
+        type: "signout",
+        classId: student.classId,
+        studentId: student.studentId,
+      });
 
       // 广播学生连接数量
       broadcastStudentCount();
@@ -674,8 +1140,18 @@ function checkClientConnections() {
     const ws = client.ws || client;
     if (ws.readyState !== WebSocket.OPEN) {
       // 连接已关闭，移除学生
+      const student = clients.students[i];
       clients.students.splice(i, 1);
       // 注意：不移除学生签到信息，保持签到状态
+
+      // 广播学生下线消息给所有教师
+      if (student.classId && student.studentId) {
+        broadcastToTeachers({
+          type: "signout",
+          classId: student.classId,
+          studentId: student.studentId,
+        });
+      }
 
       // 广播学生连接数量
       broadcastStudentCount();
@@ -695,7 +1171,7 @@ function checkClientConnections() {
 // 启动定期检查（每5秒检查一次）
 setInterval(checkClientConnections, 5000);
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 server.listen(PORT, () => {
   console.log(`服务器运行在${PORT}端口`);
   console.log(`教师机访问: http://localhost:${PORT}`);

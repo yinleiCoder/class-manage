@@ -11,6 +11,7 @@
   "description": "",
   "dependencies": {
     "adm-zip": "^0.5.17",
+    "hucre": "^0.3.0",
     "ws": "^8.20.0"
   }
 }

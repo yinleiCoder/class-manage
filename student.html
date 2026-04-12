@@ -20,6 +20,35 @@
       min-height: 100vh;
       margin: 0;
       padding: 0;
+      padding-top: 40px;
+      /* 为跑马灯留出空间 */
+    }
+
+    /* 跑马灯样式 */
+    .marquee-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 40px;
+      background-color: rgb(15, 220, 120);
+      color: black;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      overflow: hidden;
+    }
+
+    .marquee-container marquee {
+      font-weight: 600;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+    }
+
+    .marquee-container.hidden {
+      display: none;
     }
 
     .container {
@@ -292,10 +321,124 @@
       background-color: #27ae60;
       margin-right: 4px;
     }
+
+    /* 进度模态框样式 */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0, 0, 0, 0.4);
+    }
+
+    .modal-content {
+      background-color: #fefefe;
+      margin: 15% auto;
+      padding: 20px;
+      border: 1px solid #888;
+      width: 400px;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .modal-header {
+      padding: 10px 0;
+      border-bottom: 1px solid #e0e0e0;
+      margin-bottom: 20px;
+    }
+
+    .modal-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 12px;
+      background-color: #f0f0f0;
+      border-radius: 6px;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background-color: rgb(15, 220, 120);
+      border-radius: 6px;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    .progress-text {
+      text-align: center;
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 20px;
+    }
+
+    .modal-footer {
+      text-align: center;
+    }
+
+    .modal-button {
+      background-color: rgb(15, 220, 120);
+      color: black;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background-color 0.2s ease;
+    }
+
+    .modal-button:hover {
+      background-color: rgb(5, 200, 100);
+    }
   </style>
 </head>
 
 <body>
+  <!-- 跑马灯区域 -->
+  <div class="marquee-container hidden" id="marquee-container">
+    <marquee id="marquee-content" behavior="scroll" direction="left" scrollamount="6" scrolldelay="85">教师广播消息</marquee>
+  </div>
+
+  <!-- 进度模态框 -->
+  <div id="progress-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-title">文件上传中</h3>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+      <div class="progress-text" id="progress-text">0%</div>
+      <div class="modal-footer">
+        <button class="modal-button" id="modal-button" onclick="closeModal()">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 广播消息模态框 -->
+  <div id="broadcast-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title" id="broadcast-modal-title">广播消息</h3>
+      </div>
+      <div style="margin-bottom: 20px; padding: 20px; background-color: #f9f9f9; border-radius: 4px;">
+        <p id="broadcast-message" style="font-size: 18px; text-align: center;"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-button" onclick="closeBroadcastModal()">确定</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 签到页面 -->
   <div class="container" id="signin-container">
     <h1>机房班级管理系统（学生端）</h1>
@@ -411,6 +554,7 @@
     let currentClassId = '';
     let currentGrade = '';
     let chatMembers = [];
+    let currentUpload = null; // 当前上传任务
 
     // 更新连接状态显示
     function updateConnectionStatus() {
@@ -424,6 +568,33 @@
         statusIndicator.style.backgroundColor = '#e74c3c'; // 红色
         statusText.textContent = '未连接';
       }
+    }
+
+    // 显示进度模态框
+    function showModal(title) {
+      const modal = document.getElementById('progress-modal');
+      const modalTitle = document.getElementById('modal-title');
+      modalTitle.textContent = title;
+      modal.style.display = 'block';
+    }
+
+    // 隐藏进度模态框
+    function closeModal() {
+      const modal = document.getElementById('progress-modal');
+      modal.style.display = 'none';
+      // 取消当前上传任务
+      if (currentUpload) {
+        currentUpload.abort();
+        currentUpload = null;
+      }
+    }
+
+    // 更新进度
+    function updateProgress(progress) {
+      const progressFill = document.getElementById('progress-fill');
+      const progressText = document.getElementById('progress-text');
+      progressFill.style.width = `${progress}%`;
+      progressText.textContent = `${Math.round(progress)}%`;
     }
 
     let savedSigninData = null;
@@ -509,6 +680,9 @@
           if (data.classId === currentClassId) {
             addChatMember(data.studentName);
           }
+        } else if (data.type === 'broadcastMessage') {
+          // 处理广播消息
+          showBroadcastMarquee(data.message);
         }
       };
 
@@ -814,35 +988,88 @@
       console.log('处理作业上传，文件数量:', files.length);
       Array.from(files).forEach(file => {
         console.log('处理作业文件:', file.name, '大小:', file.size);
-        // 读取文件为Data URL
+        uploadHomeworkInChunks(file);
+      });
+    }
+
+    // 分块上传作业
+    function uploadHomeworkInChunks(file) {
+      const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB每块
+      let offset = 0;
+      let totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+      let currentChunk = 0;
+      let fileId = Date.now() + Math.random().toString(36).substr(2, 9);
+
+      // 显示上传进度模态框
+      showModal(`上传作业: ${file.name}`);
+
+      // 创建上传任务对象
+      currentUpload = {
+        fileId: fileId,
+        abort: function () {
+          console.log('取消上传:', file.name);
+        }
+      };
+
+      // 上传下一块
+      function uploadNextChunk() {
+        if (offset >= file.size) {
+          // 上传完成
+          console.log('作业上传完成:', file.name);
+          closeModal();
+          return;
+        }
+
+        // 计算当前块的大小
+        const chunkSize = Math.min(CHUNK_SIZE, file.size - offset);
+        const chunk = file.slice(offset, offset + chunkSize);
+
+        // 读取当前块
         const reader = new FileReader();
         reader.onload = function (e) {
-          console.log('作业文件读取完成:', file.name);
-          const fileUrl = e.target.result;
-          // 发送文件信息到服务器
+          const chunkData = e.target.result;
+
+          // 发送块数据到服务器
           if (ws && ws.readyState === WebSocket.OPEN) {
-            console.log('WebSocket连接状态:', ws.readyState);
-            const homeworkData = {
-              type: 'uploadHomework',
+            const chunkMessage = {
+              type: 'uploadHomeworkChunk',
               role: 'student',
               studentName: currentStudent.name,
               classId: currentClassId,
+              fileId: fileId,
               fileName: file.name,
               fileSize: file.size,
-              fileUrl: fileUrl
+              chunkIndex: currentChunk,
+              totalChunks: totalChunks,
+              chunkData: chunkData
             };
-            console.log('发送作业数据:', homeworkData);
-            ws.send(JSON.stringify(homeworkData));
-            console.log('作业数据发送完成');
+
+            ws.send(JSON.stringify(chunkMessage));
+
+            // 更新进度
+            currentChunk++;
+            offset += chunkSize;
+            const progress = (offset / file.size) * 100;
+            updateProgress(progress);
+
+            // 上传下一块
+            uploadNextChunk();
           } else {
             console.error('WebSocket连接未建立');
+            closeModal();
           }
         };
+
         reader.onerror = function (error) {
-          console.error('作业文件读取失败:', error);
+          console.error('文件读取失败:', error);
+          closeModal();
         };
-        reader.readAsDataURL(file);
-      });
+
+        reader.readAsDataURL(chunk);
+      }
+
+      // 开始上传
+      uploadNextChunk();
     }
 
     // 显示消息
@@ -881,6 +1108,32 @@
       }
 
       chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    // 显示广播消息模态框
+    function showBroadcastModal(message) {
+      const modal = document.getElementById('broadcast-modal');
+      const messageElement = document.getElementById('broadcast-message');
+      messageElement.textContent = message;
+      modal.style.display = 'block';
+    }
+
+    // 关闭广播消息模态框
+    function closeBroadcastModal() {
+      const modal = document.getElementById('broadcast-modal');
+      modal.style.display = 'none';
+    }
+
+    // 显示广播消息跑马灯
+    function showBroadcastMarquee(message) {
+      const marqueeContainer = document.getElementById('marquee-container');
+      const marqueeContent = document.getElementById('marquee-content');
+
+      // 更新跑马灯内容
+      marqueeContent.textContent = `📢教师广播: ${message}`;
+
+      // 显示跑马灯
+      marqueeContainer.classList.remove('hidden');
     }
 
     // 监听回车键发送消息
