@@ -170,8 +170,8 @@ function broadcastToTeachers(message) {
 // 广播消息给所有学生
 function broadcastToStudents(message) {
   clients.students.forEach((client) => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify(message));
+    if (client.ws && client.ws.readyState === WebSocket.OPEN) {
+      client.ws.send(JSON.stringify(message));
     }
   });
 }
@@ -1171,7 +1171,7 @@ function checkClientConnections() {
 // 启动定期检查（每5秒检查一次）
 setInterval(checkClientConnections, 5000);
 
-const PORT = process.env.PORT || 3002;
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`服务器运行在${PORT}端口`);
   console.log(`教师机访问: http://localhost:${PORT}`);
